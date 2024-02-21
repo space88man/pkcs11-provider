@@ -796,6 +796,12 @@ static CK_RV fetch_ec_key(P11PROV_CTX *ctx, P11PROV_SESSION *session,
     FA_SET_BUF_ALLOC(attrs, num, CKA_EC_PARAMS, true);
     if (key->class == CKO_PUBLIC_KEY) {
         FA_SET_BUF_ALLOC(attrs, num, CKA_EC_POINT, true);
+    } else {
+        /* known vendor optimization to avoid storing
+         * EC public key on HSM; can avoid
+         * find_associated_obj later
+         */
+        FA_SET_BUF_ALLOC(attrs, num, CKA_EC_POINT, false);
     }
     FA_SET_BUF_ALLOC(attrs, num, CKA_ID, false);
     FA_SET_BUF_ALLOC(attrs, num, CKA_LABEL, false);
