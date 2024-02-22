@@ -2638,17 +2638,17 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     findctx->bit_size = EC_GROUP_order_bits(group);
     findctx->key_size = (findctx->bit_size + 7) / 8;
     rv = CKR_OK;
+done:
+    OPENSSL_free(ecparams);
+    EC_GROUP_free(group);
+    return rv;
 
-done0:
+ done0:
     OPENSSL_free(pub_key[0].data);
     EC_GROUP_free(group);
     EC_POINT_free(point);
     BN_CTX_free(bn_ctx);
     return ret;
-done:
-    OPENSSL_free(ecparams);
-    EC_GROUP_free(group);
-    return rv;
 }
 
 static CK_RV return_dup_key(P11PROV_OBJ *dst, P11PROV_OBJ *src)
