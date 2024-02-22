@@ -2516,7 +2516,13 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
                           struct pool_find_ctx *findctx)
 {
     EC_GROUP *group = NULL;
+    EC_POINT *point = NULL;
+    BN_CTX *bn_ctx = NULL;
+    int ret, plen;
+
     OSSL_PARAM tmp;
+    const OSSL_PARAM *p;
+    OSSL_PARAM pub_key[2] = {{ NULL, 0, NULL, 0, 0 }, { NULL, 0, NULL, 0, 0 }};
     const char *curve_name = NULL;
     int curve_nid;
     unsigned char *ecparams = NULL;
@@ -2528,19 +2534,59 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     }
     findctx->numattrs = 0;
 
-    rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_PUB_KEY, &findctx->attrs[0],
-                       CKA_P11PROV_PUB_KEY, false);
-    if (rv != CKR_OK) {
-        return rv;
-    }
-    findctx->numattrs++;
-
     group = EC_GROUP_new_from_params(params, p11prov_ctx_get_libctx(ctx), NULL);
     if (!group) {
         P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Unable to decode ec group");
         rv = CKR_KEY_INDIGESTIBLE;
         goto done;
     }
+
+    p = OSSL_PARAM_locate_const(params, OSSL_PKEY_PARAM_PUB_KEY);
+    if (!p) {
+        P11PROV_raise(ctx, CKR_KEY_INDIGESTIBLE, "Missing %s", OSSL_PKEY_PARAM_PUB_KEY);
+        EC_GROUP_free(group);
+        return CKR_KEY_INDIGESTIBLE;
+    }
+
+    if (((char *)p->data)[0] == '\x02') {
+        P11PROV_debug("OpenSSL 3.0.7 BUG - received compressed EC public key");
+        pub_key[0].key = OSSL_PKEY_PARAM_PUB_KEY;
+        pub_key[0].data_type = p->data_type;
+        pub_key[0].data = OPENSSL_malloc(300);
+
+        point = EC_POINT_new(group);
+        bn_ctx = BN_CTX_new();
+        ret = EC_POINT_oct2point(group, point, p->data, p->data_size, bn_ctx);
+        if(!ret) {
+            goto done0;
+        }
+
+        plen = EC_POINT_point2oct(group, point, POINT_CONVERSION_UNCOMPRESSED, pub_key[0].data, 300, bn_ctx);
+        if(!plen) {
+            ret = CKR_KEY_INDIGESTIBLE;
+            goto done0;
+
+        }
+
+        pub_key[0].data_size = plen;
+        ret = param_to_attr(ctx, pub_key, OSSL_PKEY_PARAM_PUB_KEY, &findctx->attrs[0],
+                           CKA_P11PROV_PUB_KEY, false);
+        if (ret != CKR_OK) {
+            goto done0;
+        }
+        OPENSSL_free(pub_key[0].data);
+        EC_GROUP_free(group);
+        EC_POINT_free(point);
+        BN_CTX_free(bn_ctx);
+    } else {
+        rv = param_to_attr(ctx, params, OSSL_PKEY_PARAM_PUB_KEY, &findctx->attrs[0],
+                           CKA_P11PROV_PUB_KEY, false);
+        if (rv != CKR_OK) {
+            return rv;
+        }
+    }
+
+    findctx->numattrs++;
 
     curve_nid = EC_GROUP_get_curve_name(group);
     if (curve_nid != NID_undef) {
@@ -2594,6 +2640,12 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     findctx->key_size = (findctx->bit_size + 7) / 8;
     rv = CKR_OK;
 
+done0:
+    OPENSSL_free(pub_key[0].data);
+    EC_GROUP_free(group);
+    EC_POINT_free(point);
+    BN_CTX_free(bn_ctx);
+    return ret;
 done:
     OPENSSL_free(ecparams);
     EC_GROUP_free(group);
