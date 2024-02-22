@@ -2512,6 +2512,7 @@ static CK_RV prep_rsa_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
     return CKR_OK;
 }
 
+#define PUB_KEY_SIZE 200
 static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
                           struct pool_find_ctx *findctx)
 {
@@ -2552,7 +2553,7 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
         P11PROV_debug("OpenSSL 3.0.7 BUG - received compressed EC public key");
         pub_key[0].key = OSSL_PKEY_PARAM_PUB_KEY;
         pub_key[0].data_type = p->data_type;
-        pub_key[0].data = OPENSSL_malloc(300);
+        pub_key[0].data = OPENSSL_malloc(PUB_KEY_SIZE);
 
         point = EC_POINT_new(group);
         bn_ctx = BN_CTX_new();
@@ -2561,7 +2562,8 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
             goto done0;
         }
 
-        plen = EC_POINT_point2oct(group, point, POINT_CONVERSION_UNCOMPRESSED, pub_key[0].data, 300, bn_ctx);
+        plen = EC_POINT_point2oct(group, point, POINT_CONVERSION_UNCOMPRESSED,
+                                  pub_key[0].data, PUB_KEY_SIZE, bn_ctx);
         if(!plen) {
             ret = CKR_KEY_INDIGESTIBLE;
             goto done0;
