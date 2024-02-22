@@ -2575,7 +2575,6 @@ static CK_RV prep_ec_find(P11PROV_CTX *ctx, const OSSL_PARAM params[],
             goto done0;
         }
         OPENSSL_free(pub_key[0].data);
-        EC_GROUP_free(group);
         EC_POINT_free(point);
         BN_CTX_free(bn_ctx);
     } else {
