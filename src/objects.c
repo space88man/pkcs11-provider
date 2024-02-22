@@ -2198,6 +2198,15 @@ static int match_public_keys(P11PROV_OBJ *key1, P11PROV_OBJ *key2)
         return cmp_public_key_values(key1, key2);
     }
 
+    if (key1->data.key.type == CKK_EC) {
+        /* Vendor implementation where EC private key may contain
+         * CKA_EC_POINT
+         */
+        ret = cmp_public_key_values(key1, key2);
+        if (ret != RET_OSSL_ERR)
+            return ret;
+    }
+
     /* one of the keys or both are private */
     if (key1->class == CKO_PUBLIC_KEY && key2->class == CKO_PRIVATE_KEY) {
         pub_key = key1;
